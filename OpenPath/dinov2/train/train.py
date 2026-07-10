@@ -249,8 +249,9 @@ def _load_pretrained_backbone(cfg, model):
         raise AssertionError("Unsupported FFN block type")
 
     hub_name = _resolve_torchhub_name(cfg)
-    logger.info("Loading pretrained backbone from torch.hub: %s", hub_name)
-    model_pretrained = torch.hub.load("facebookresearch/dinov2", hub_name)
+    logger.info("Building pretrained DINOv2 backbone (%s) via dinov2.hub.backbones", hub_name)
+    from dinov2.hub import backbones as _dinov2_hub_backbones
+    model_pretrained = getattr(_dinov2_hub_backbones, hub_name)(pretrained=True)
     device = next(model.parameters()).device
     model_pretrained = model_pretrained.to(device)
     student_backbone = model.student.backbone
