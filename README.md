@@ -18,8 +18,9 @@ pipeline_tag: image-feature-extraction
 
 **OpenPath** is a vision foundation model for computational pathology: a **ViT-g/14** encoder
 pre-trained with self-supervision (**DINOv2** + **gram anchoring**) on **public-only** whole-slide
-histopathology tiles. This repository contains the **training, reproduction, and evaluation code**.
-The corpus and checkpoints are hosted separately (see below).
+histopathology tiles. This repository contains the **training, reproduction, and evaluation code**
+plus the **released weight** (`teacher_checkpoint.pth` = `training_316250`). The corpus and the full
+checkpoint set are hosted separately (see below).
 
 > **Headline result.** On **AMC-HCC-ST** — a contamination-free in-house Asan Medical Center
 > hepatocellular-carcinoma spatial-transcriptomics cohort, the least leakage-prone benchmark since no
@@ -62,8 +63,8 @@ requirements.txt
 | Artifact | Hugging Face repo | Notes |
 |---|---|---|
 | **Corpus** | `taejoon89/openpath-corpus` | Native 40× pathology tiles, 33,991 WebDataset shards / ~17 TB |
-| **Checkpoints** | `taejoon89/openpath-checkpoints` | OpenPath teacher checkpoints across training (`training_0` … `training_345000`); **released model = `training_316250`** |
-| **Code** | `taejoon89/openpath` | This repository |
+| **Checkpoints** | `taejoon89/openpath-checkpoints` | full teacher-checkpoint set (`training_0` … `training_345000`) |
+| **Code + weight** | `taejoon89/openpath` | This repository — code + the released `teacher_checkpoint.pth` (= `training_316250`). Code mirror: [GitHub](https://github.com/taejoon89/openpath) |
 
 The training config points to the corpus via
 `train.sample_list_path: "openpath:glob=<corpus>/*/tiles/shards/w*/*.tar"`. The gram anchor
@@ -101,7 +102,8 @@ bash scripts/launch.sh openpathrun "$CFG" <output_dir> <log_dir>
 # optionally run scripts/autoresume.sh (background) and scripts/watch_eval.sh (online HEST)
 ```
 
-Extract CLS embeddings for downstream use:
+Extract CLS embeddings for downstream use (`teacher_checkpoint.pth` = the released `training_316250`,
+included in this repo):
 
 ```python
 import torch, dinov2.models.vision_transformer as vits
@@ -212,7 +214,7 @@ A paper is in preparation. Until then, please cite the repository and the upstre
 ```bibtex
 @misc{openpath2026,
   title  = {OpenPath: Public-Data Pathology Foundation Models and Leakage-Free Evaluation},
-  author = {OpenPath authors},
+  author = {Tae Joon Jun},
   year   = {2026},
   note   = {https://huggingface.co/taejoon89/openpath}
 }
