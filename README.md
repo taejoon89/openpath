@@ -16,6 +16,8 @@ pipeline_tag: image-feature-extraction
 
 *Training, reproduction, and evaluation code.*
 
+🔗 **[GitHub](https://github.com/taejoon89/openpath)** · [Checkpoints](https://huggingface.co/taejoon89/openpath-checkpoints) · [Corpus](https://huggingface.co/datasets/taejoon89/openpath-corpus)
+
 **OpenPath** is a vision foundation model for computational pathology: a **ViT-g/14** encoder
 pre-trained with self-supervision (**DINOv2** + **gram anchoring**) on **public-only** whole-slide
 histopathology tiles. This repository contains the **training, reproduction, and evaluation code**
