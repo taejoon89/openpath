@@ -1,0 +1,95 @@
+# OpenPath — ViT-g/14 pathology FM pre-training config.
+# DINOv2 (DINO + iBOT + KDE) + gram anchoring, warm-started from Meta DINOv2 ViT-g/14-reg,
+# on the public OpenPath corpus (native 40x tiles). Global batch = 64/GPU x 40 GPU = 2560.
+#
+# LR regime: near-constant (flat). `epochs` only sets the schedule horizon (very large), so the
+# cosine barely descends; the run actually stops at `early_stop`. This keeps LR/wd/momentum
+# near their initial values throughout training.
+compute_precision:
+  grad_scaler: false
+  teacher:
+    backbone:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: bf16, buffer_dtype: fp32}
+    dino_head:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: bf16, buffer_dtype: fp32}
+    ibot_head:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: bf16, buffer_dtype: fp32}
+  student:
+    backbone:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: bf16, buffer_dtype: fp32}
+    dino_head:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: fp32, buffer_dtype: fp32}
+    ibot_head:
+      sharding_strategy: SHARD_GRAD_OP
+      mixed_precision: {param_dtype: bf16, reduce_dtype: fp32, buffer_dtype: fp32}
+dino:
+  head_n_prototypes: 131072
+  head_bottleneck_dim: 384
+  do_kde: True
+  kde_loss_weight: .05
+  koleo_loss_weight: 0
+  do_koleo: False
+ibot:
+  loss_weight: 1.0
+  mask_sample_probability: 0.5
+  mask_ratio_min_max:
+    - 0.1
+    - 0.45
+  separate_head: true
+  head_n_prototypes: 131072
+train:
+  # OpenPath corpus (taejoon89/openpath-corpus). Point to the downloaded shards:
+  sample_list_path: "openpath:glob=/path/to/openpath-corpus/*/tiles/shards/w*/*.tar"
+  streaming_from_hf: false
+  batch_size_per_gpu: 64          # x 40 GPU = global 2560
+  centering: sinkhorn_knopp
+  use_pretrained: True            # Meta DINOv2 ViT-g/14-reg warm-start (set MODEL.WEIGHTS)
+  OFFICIAL_EPOCH_LENGTH: 1250
+  saveckp_freq: 8                 # resume ckpt every 8 x 1250 = 10,000 iters
+  num_workers: 10
+  prefetch_factor: 4
+  skip_checkpointer: false
+student:
+  arch: vit_giant2
+  patch_size: 14
+  drop_path_rate: 0.4
+  ffn_layer: swiglufused
+  block_chunks: 4
+  num_register_tokens: 4
+  interpolate_antialias: true
+  interpolate_offset: 0.0
+teacher:
+  momentum_teacher: 0.994
+  warmup_teacher_temp_epochs: 41  # 0.27 epoch = 51,250 iters
+optim:
+  epochs: 8000                    # schedule horizon only (=10,000,000 iter); LR/wd/momentum near-constant
+  early_stop: 276                 # actual stop: 276 x 1250 = 345,000 iters (~1 native epoch)
+  weight_decay_end: 0.2           # not reached within early_stop (wd stays ~0.040)
+  base_lr: 2.0e-04                # sqrt_wrt_1024 -> effective ~3.16e-4 @ global 2560
+  warmup_epochs: 9                # ~11,250 iter (~4.9%); must be an integer
+  freeze_last_layer_epochs: 1
+  layerwise_decay: 1.0
+crops:
+  local_crops_size: 98
+evaluation:
+  eval_period_iterations: 5750    # save a teacher checkpoint every 5,750 iters
+  bach_root: ""
+  breakhis_root: ""
+  pcam_root: ""
+
+# Gram anchoring (technique from DINOv3; clean-room re-implementation): MSE between L2-normalized patch-token Gram matrices of
+# student vs a frozen anchor. Dampens dense-feature degradation during long training.
+gram:
+  use_loss: true
+  normalized: true
+  remove_neg: true
+  loss_weight: 40.0            # ~5-8% of total loss; lower if it over-constrains DINO/iBOT
+  it_first_update: 57500       # activate near the dense-feature peak
+  ramp_iters: 3000             # linear ramp of the gram weight
+  # Anchor = a strong earlier OpenPath teacher checkpoint (see taejoon89/openpath-checkpoints):
+  ckpt: /path/to/openpath-checkpoints/training_63250/teacher_checkpoint.pth
